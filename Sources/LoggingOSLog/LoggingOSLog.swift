@@ -5,14 +5,30 @@ import os
 public struct LoggingOSLog: LogHandler {
     public var logLevel: Logger.Level = .info
     public let label: String
-    private let oslogger: OSLog
-    
+	
+	private var _oslogger: AnyObject?
+    @available(iOS 8.0, *)
+    var oslogger: OSLog {
+        get {
+            return _oslogger as! OSLog
+        }
+        set {
+            _oslogger = newValue
+        }
+    }
+	
+	
     public init(label: String) {
         self.label = label
-        self.oslogger = OSLog(subsystem: label, category: "")
+		if #available(iOS 10.0, *) {
+			self.oslogger = OSLog(subsystem: Bundle.main.bundleIdentifier!, category: label)
+		}
     }
     
     public func log(level: Logger.Level, message: Logger.Message, metadata: Logger.Metadata?, file: String, function: String, line: UInt) {
+		
+		guard ProcessInfo.processInfo.environment[label] == nil || ProcessInfo.processInfo.environment[label] == "true" else { return }
+		
         var combinedPrettyMetadata = self.prettyMetadata
         if let metadataOverride = metadata, !metadataOverride.isEmpty {
             combinedPrettyMetadata = self.prettify(
@@ -26,9 +42,15 @@ public struct LoggingOSLog: LogHandler {
         if combinedPrettyMetadata != nil {
             formedMessage += " -- " + combinedPrettyMetadata!
         }
-        if let str = formedMessage as? NSString {
-            os_log("%{public}@", log: self.oslogger, type: OSLogType.from(loggerLevel: level), str)
-        }
+		
+		let icon = LoggingOSLog.icon(loggerLevel: level)
+		let log = [icon, formedMessage].filter({ $0.isEmpty }).joined(separator: " ")
+		
+		if #available(iOS 10.0, *) {
+			os_log("%{public}@", log: self.oslogger, type: OSLogType.from(loggerLevel: level), log)
+		} else {
+			NSLog(String(describing: log))
+		}
     }
     
     private var prettyMetadata: String?
@@ -58,8 +80,31 @@ public struct LoggingOSLog: LogHandler {
             "\($0)=\($1)"
         }.joined(separator: " ")
     }
+	
+	static func icon(loggerLevel: Logger.Level) -> String {
+        switch loggerLevel {
+        case .trace:
+            return ""
+        case .debug:
+            return "💬"
+        case .info:
+            return ""
+        case .notice:
+            return "📌"
+        case .warning:
+            return "⚠️"
+        case .error:
+            return "❌"
+        case .critical:
+            return "🔥"
+        }
+	}
 }
 
+@available(OSX 10.12, *)
+@available(iOS 10.0, *)
+@available(tvOS 10.0, *)
+@available(watchOS 3.0, *)
 extension OSLogType {
     static func from(loggerLevel: Logger.Level) -> Self {
         switch loggerLevel {
