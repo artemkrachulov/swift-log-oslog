@@ -44,7 +44,7 @@ public struct LoggingOSLog: LogHandler {
         }
 		
 		let icon = LoggingOSLog.icon(loggerLevel: level)
-		let log = [icon, formedMessage].filter({ $0.isEmpty }).joined(separator: " ")
+		let log = [icon, formedMessage].filter({ !$0.isEmpty }).joined(separator: " ")
 		
 		if #available(iOS 10.0, *) {
 			os_log("%{public}@", log: self.oslogger, type: OSLogType.from(loggerLevel: level), log)
